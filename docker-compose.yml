@@ -1,0 +1,61 @@
+version: '3.8'
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+      - redpanda
+    ports:
+      - "3000:3000"
+    environment:
+      PG_CONNECTION_STRING: postgres://myuser:mypass@postgres:5432/mydb
+      KAFKA_BROKER: redpanda:9092
+    # entrypoint: ["/app/entrypoint.sh"]
+    command: ["node", "dist/index.js"]
+  worker-1:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+      - redpanda
+    environment:
+      PG_CONNECTION_STRING: postgres://myuser:mypass@postgres:5432/mydb
+      KAFKA_BROKER: redpanda:9092
+    command: ["node", "dist/index.js"]
+  postgres:
+    image: postgres:15
+    container_name: auction-db
+    restart: always
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypass
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: redpanda
+    ports:
+      - "9092:9092" # Kafka API
+      - "8081:8081" # PandaProxy
+      - "9644:9644" # Admin API
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 1G
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr 0.0.0.0:9092
+      - --advertise-kafka-addr redpanda:9092
+      - --rpc-addr 0.0.0.0:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --set redpanda.enable_transactions=true
+      - --set redpanda.enable_idempotence=true
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+
+volumes:
+  redpanda-data:
