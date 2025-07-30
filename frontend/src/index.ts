@@ -44,14 +44,14 @@ function listenToEvents(player: Bot) {
   eventSource.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      console.log(`[EVENT][${player.name}]`, data);
+      // console.log(`[EVENT][${player.name}]`, data);
 
       // Update bots internals
       const winningAmount = data.bids.find((b: {playerId: string, amount: number }) => b.playerId === data.winnerId)?.amount || 0
       player.addHistory(winningAmount);
 
       if (data.winnerId === player.id) {
-        console.log(`[EVENT][${player.name}] You won this round with amount: ${winningAmount}`);
+        // console.log(`[EVENT][${player.name}] You won this round with amount: ${winningAmount}`);
         player.updateMoney(winningAmount);
       }
 
@@ -85,7 +85,7 @@ async function postBid(player: Player, bidAmount: number) {
     console.error(`[BID][${player.name}] Failed to submit bid:`, errText);
   } else {
     const data = (await res.json()) as { message: string };
-    console.log(`[BID][${player.name}] Bid accepted for amount: ${bidAmount}. Server message:`, data.message);
+    console.log(`[BID][${player.name}] Server message:`, data.message);
   }
 }
 
@@ -111,6 +111,34 @@ async function main() {
   });
 
   bots.forEach(listenToEvents);
+
+
+  // Return results to the player
+
+  const url = `${API_URL}/events`;
+  const eventSource = new EventSource(`${url}?playerId=${user.id}`);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log(`[EVENT] Round results`, data);
+
+      if (data.winnerId === user.id) {
+        console.log(`\n\n\n\n[EVENT] You won this round!\n\n\n\n`);
+      } else {
+        console.log(`\n\n\n\n[EVENT] ${data.winnerId} won this round!\n\n\n\n`);
+      }
+
+    } catch (err) {
+      console.error(`[EVENT] Failed to parse event data`, err);
+    }
+  };
+
+  eventSource.onerror = (err) => {
+    console.error(`[EVENT] EventSource error:`, err);
+    eventSource.close();
+  };
+
 
   // place initial bids for all bots
   await Promise.all(bots.map((b) => {
